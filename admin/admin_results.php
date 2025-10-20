@@ -210,18 +210,17 @@ $overall_avg = ($total_evals > 0) ? round($weighted_sum / $total_evals, 2) : nul
             </button>
             <div class="flex items-center gap-2">
                 <i class='bx bx-bar-chart text-red-600 text-2xl'></i>
-                <h1 class="text-lg font-semibold text-gray-800">Evaluation Results</h1>
-            </div>
-            <div class="ml-auto text-xs">
-                <span class="text-gray-500">Active Term:</span>
-                <span class="font-semibold"><?= htmlspecialchars($term_label) ?></span>
+                <h1 class="text-[16px] sm:text-[18px] md:text-[18px] font-semibold text-gray-800">
+                    Evaluation Results
+                </h1>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto p-4">
-        <!-- Page header (desktop) -->
-        <div class="hidden lg:flex items-center justify-between mb-4">
+    <!-- Page header (desktop) -->
+
+    <div class="hidden lg:flex fixed top-0 left-64 right-0 z-20 bg-white border-b border-gray-200 px-6 py-4 items-center justify-between">
+        <div class="flex items-center gap-2">
             <div class="flex items-center space-x-2">
                 <i class='bx bx-bar-chart text-red-600 text-2xl'></i>
                 <h1 class="text-2xl font-semibold text-gray-800">Evaluation Results</h1>
@@ -231,6 +230,9 @@ $overall_avg = ($total_evals > 0) ? round($weighted_sum / $total_evals, 2) : nul
                 <span class="font-semibold"><?= htmlspecialchars($term_label) ?></span>
             </div>
         </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto p-4 lg:pt-20">
 
         <?php if ($no_term): ?>
             <div class="bg-yellow-50 border border-yellow-300 text-yellow-900 p-4 rounded">

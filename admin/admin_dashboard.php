@@ -126,33 +126,40 @@ if ($term_id) {
     <?php $active = 'dashboard';
     include __DIR__ . '/partials/sidebar.php'; ?>
 
-    <!-- Top bar -->
-    <div class="sticky top-0 z-30 bg-white border-b border-gray-300 px-4 py-3 flex items-center justify-between lg:ml-64">
-        <div class="flex items-center gap-3">
+    <!-- ✅ Mobile / Tablet Top Bar -->
+    <header class="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 lg:hidden">
+        <div class="flex items-center gap-3 px-3 py-2">
             <button type="button"
-                class="lg:hidden inline-flex items-center justify-center rounded-md p-2 border border-gray-300"
-                aria-label="Open sidebar"
+                class="inline-flex items-center justify-center p-2 rounded hover:bg-gray-100"
+                aria-label="Open menu"
                 onclick="window.__openAdminSidebar && window.__openAdminSidebar()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <i class='bx bx-menu text-2xl'></i>
             </button>
 
-            <h1 class="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                <i class='bx bxs-dashboard text-red-600'></i>
-                <span>Admin Dashboard</span>
-            </h1>
+            <div class="flex items-center gap-2">
+                <i class='bx bxs-dashboard text-red-600 text-2xl'></i>
+                <h1 class="text-lg font-semibold text-gray-800">Admin Dashboard</h1>
+            </div>
+        </div>
+    </header>
+
+    <!-- ✅ Desktop Header -->
+    <header class="hidden lg:flex fixed top-0 left-64 right-0 z-20 bg-white border-b border-gray-200 px-6 py-4 items-center justify-between">
+        <div class="flex items-center gap-2">
+            <i class='bx bxs-dashboard text-red-600 text-2xl'></i>
+            <h1 class="text-xl font-semibold text-gray-800">Admin Dashboard</h1>
         </div>
 
         <p class="text-sm text-gray-600">
             Logged in as:
-            <span class="font-semibold text-gray-800"><?= esc($_SESSION['admin_user']) ?></span>
+            <span class="font-semibold text-gray-800">
+                <?= htmlspecialchars($_SESSION['admin_user'] ?? 'Admin', ENT_QUOTES, 'UTF-8') ?>
+            </span>
         </p>
-    </div>
-
+    </header>
+    
     <!-- Main content -->
-    <main class="lg:ml-64">
+    <main class="lg:ml-64 p-4 pt-16">
         <div class="p-4 max-w-7xl mx-auto">
 
             <!-- Active term -->

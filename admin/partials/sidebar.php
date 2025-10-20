@@ -44,16 +44,23 @@ function nav_class($name, $active)
         <a href="admin_dashboard.php" class="<?= nav_class('dashboard', $active) ?>">
             <i class='bx bxs-dashboard'></i> <span>Dashboard</span>
         </a>
+
         <a href="admin_faculty.php" class="<?= nav_class('faculty', $active) ?>">
             <i class='bx bxs-user-voice'></i> <span>Manage Faculty</span>
         </a>
+
+        <!-- ✅ New Link: Faculty Assignments -->
+        <a href="admin_faculty_assignments.php" class="<?= nav_class('faculty_map', $active) ?>">
+            <i class='bx bx-map-pin'></i> <span>Faculty Assignments</span>
+        </a>
+
         <a href="admin_terms.php" class="<?= nav_class('terms', $active) ?>">
             <i class='bx bx-calendar-event'></i> <span>Set Active Term</span>
         </a>
+
         <a href="admin_results.php" class="<?= nav_class('results', $active) ?>">
             <i class='bx bx-bar-chart'></i> <span>Evaluation Results</span>
         </a>
-
     </nav>
 
     <!-- Footer / Logout -->
@@ -65,7 +72,7 @@ function nav_class($name, $active)
     </div>
 </aside>
 
-<!-- Tiny JS to toggle drawer (works on any page that includes this file) -->
+<!-- Tiny JS to toggle drawer -->
 <script>
     (function() {
         const sidebar = document.getElementById('adminSidebar');
@@ -74,7 +81,7 @@ function nav_class($name, $active)
         function openSidebar() {
             sidebar.classList.remove('-translate-x-full');
             overlay.classList.remove('hidden');
-            document.documentElement.style.overflow = 'hidden'; // prevent background scroll
+            document.documentElement.style.overflow = 'hidden';
         }
 
         function closeSidebar() {
@@ -83,18 +90,13 @@ function nav_class($name, $active)
             document.documentElement.style.overflow = '';
         }
 
-        // Global open/close hooks (so pages can provide their own buttons)
         window.__openAdminSidebar = openSidebar;
         window.__closeAdminSidebar = closeSidebar;
 
-        // Close button inside sidebar
         const closeBtn = document.getElementById('closeSidebarBtn');
         if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
-
-        // Click on overlay closes
         if (overlay) overlay.addEventListener('click', closeSidebar);
 
-        // Close on Esc
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeSidebar();
         });

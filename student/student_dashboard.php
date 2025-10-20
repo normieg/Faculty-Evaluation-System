@@ -128,7 +128,7 @@ function already_evaluated($conn, $fid, $term_id, $rater_hash)
                 <img src="../assets/images/moist_logo.png" class="h-10 w-12 object-contain" alt="Logo">
                 <div>
                     <h1 class="text-lg font-semibold text-red-600 leading-tight">MOIST</h1>
-                    <p class="text-xs font-medium text-red-600">COLLEGE EVALUATION SYSTEM</p>
+                    <p class="text-xs font-medium text-red-600">Faculty Evaluation</p>
                 </div>
             </div>
 
