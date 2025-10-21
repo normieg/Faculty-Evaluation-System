@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             list($file, $err) = simple_upload_photo($_FILES['photo'] ?? [], $PHOTO_DIR, null);
             $file_sql = $file ? "'" . mysqli_real_escape_string($conn, $file) . "'" : "NULL";
             mysqli_query($conn, "INSERT INTO faculty(full_name, photo_url, is_active)
-                                 VALUES('" . mysqli_real_escape_string($conn, $name) . "', $file_sql, 1)");
+                                VALUES('" . mysqli_real_escape_string($conn, $name) . "', $file_sql, 1)");
             $_SESSION['flash_msg'] = $err ?: 'Faculty added successfully.';
             $_SESSION['flash_type'] = 'success';
         } else {

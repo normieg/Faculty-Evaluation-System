@@ -1,94 +1,86 @@
 <?php
 require __DIR__ . '/../database.php';
 
-// Start session safely (in case database.php didn't)
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// --- Require admin login ---
+if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit;
 }
 
-// --- Flash message (read & clear on GET) ---
+/* --- Flash --- */
 $msg = $_SESSION['flash_msg'] ?? '';
 $msg_type = $_SESSION['flash_type'] ?? 'success';
 unset($_SESSION['flash_msg'], $_SESSION['flash_type']);
 
-// --- Helpers ---
+/* --- Helpers --- */
 function h($s)
 {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 function fmt_date($d)
 {
-    if (!$d) return '';
     $ts = strtotime($d);
     return $ts ? date('M j, Y', $ts) : $d;
 }
 
-// --- Actions (PRG) ---
+/* --- Actions (PRG) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Set Active Term
+    // Set Active
     if (isset($_POST['set_active'])) {
         $tid = intval($_POST['term_id'] ?? 0);
         $chk = mysqli_query($conn, "SELECT id FROM terms WHERE id='{$tid}'");
         if ($chk && mysqli_num_rows($chk) === 1) {
             mysqli_query($conn, "UPDATE terms SET is_active=0");
             mysqli_query($conn, "UPDATE terms SET is_active=1 WHERE id='{$tid}'");
-            $_SESSION['flash_msg']  = "Active term updated successfully.";
+            $_SESSION['flash_msg'] = "Active term updated.";
             $_SESSION['flash_type'] = 'success';
         } else {
-            $_SESSION['flash_msg']  = "Selected term not found.";
+            $_SESSION['flash_msg'] = "Selected term not found.";
             $_SESSION['flash_type'] = 'error';
         }
         header("Location: admin_terms.php");
         exit;
     }
 
-    // Delete Term
+    // Delete
     if (isset($_POST['delete_term'])) {
         $tid = intval($_POST['term_id'] ?? 0);
-        $chk = mysqli_query($conn, "SELECT id, label, is_active FROM terms WHERE id='{$tid}'");
+        $chk = mysqli_query($conn, "SELECT id,label,is_active FROM terms WHERE id='{$tid}'");
         if ($chk && mysqli_num_rows($chk) === 1) {
-            $term = mysqli_fetch_assoc($chk);
-            if ((int)$term['is_active'] === 1) {
-                $_SESSION['flash_msg']  = "You cannot delete the active term.";
+            $t = mysqli_fetch_assoc($chk);
+            if ((int)$t['is_active'] === 1) {
+                $_SESSION['flash_msg'] = "You cannot delete the active term.";
                 $_SESSION['flash_type'] = 'error';
             } else {
                 mysqli_query($conn, "DELETE FROM terms WHERE id='{$tid}'");
-                $_SESSION['flash_msg']  = "Term “" . h($term['label']) . "” has been deleted.";
+                $_SESSION['flash_msg'] = "Deleted “" . h($t['label']) . "”.";
                 $_SESSION['flash_type'] = 'success';
             }
         } else {
-            $_SESSION['flash_msg']  = "Term not found.";
+            $_SESSION['flash_msg'] = "Term not found.";
             $_SESSION['flash_type'] = 'error';
         }
         header("Location: admin_terms.php");
         exit;
     }
 
-    // Add New Term
+    // Add (comes from modal)
     if (isset($_POST['add_term'])) {
         $label = trim($_POST['label'] ?? '');
         $start = $_POST['starts_on'] ?? '';
         $end   = $_POST['ends_on'] ?? '';
-
         if ($label === '' || $start === '' || $end === '') {
-            $_SESSION['flash_msg']  = "Please complete all fields.";
+            $_SESSION['flash_msg'] = "Please complete all fields.";
             $_SESSION['flash_type'] = 'error';
         } else {
-            $tsStart = strtotime($start);
-            $tsEnd   = strtotime($end);
-            if (!$tsStart || !$tsEnd || $tsEnd <= $tsStart) {
-                $_SESSION['flash_msg']  = "“Ends On” must be after “Starts On”.";
+            $tsS = strtotime($start);
+            $tsE = strtotime($end);
+            if (!$tsS || !$tsE || $tsE <= $tsS) {
+                $_SESSION['flash_msg'] = "“Ends On” must be after “Starts On”.";
                 $_SESSION['flash_type'] = 'error';
             } else {
-                mysqli_query($conn, "INSERT INTO terms(label, starts_on, ends_on, is_active)
-                                     VALUES('{$label}', '{$start}', '{$end}', 0)");
-                $_SESSION['flash_msg']  = "Term “" . h($label) . "” added successfully.";
+                mysqli_query($conn, "INSERT INTO terms(label,starts_on,ends_on,is_active) VALUES('{$label}','{$start}','{$end}',0)");
+                $_SESSION['flash_msg'] = "Added “" . h($label) . "”.";
                 $_SESSION['flash_type'] = 'success';
             }
         }
@@ -97,9 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- Fetch terms (latest first) ---
+/* --- Data --- */
 $terms = [];
-$res = mysqli_query($conn, "SELECT id, label, starts_on, ends_on, is_active FROM terms ORDER BY starts_on DESC");
+$res = mysqli_query($conn, "SELECT id,label,starts_on,ends_on,is_active FROM terms ORDER BY starts_on DESC");
 $active_label = 'None';
 $active_id = 0;
 while ($row = mysqli_fetch_assoc($res)) {
@@ -117,10 +109,8 @@ while ($row = mysqli_fetch_assoc($res)) {
     <meta charset="utf-8">
     <title>Manage Terms</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
-
     <style>
         @media print {
 
@@ -141,6 +131,10 @@ while ($row = mysqli_fetch_assoc($res)) {
                 margin: 0 !important;
             }
         }
+
+        .modal-open {
+            overflow: hidden;
+        }
     </style>
 </head>
 
@@ -148,23 +142,16 @@ while ($row = mysqli_fetch_assoc($res)) {
     <?php $active = 'terms';
     include __DIR__ . '/partials/sidebar.php'; ?>
 
-
-    <!-- Mobile/Tablet top bar -->
+    <!-- Mobile/Tablet header (UNCHANGED) -->
     <header class="topbar sticky top-0 z-30 bg-white border-b border-gray-200 lg:hidden">
         <div class="flex items-center gap-3 px-3 py-2">
-            <button type="button"
-                class="inline-flex items-center justify-center p-2 rounded hover:bg-gray-100"
-                aria-label="Open menu"
-                onclick="window.__openAdminSidebar && window.__openAdminSidebar()">
+            <button type="button" class="inline-flex items-center justify-center p-2 rounded hover:bg-gray-100"
+                aria-label="Open menu" onclick="window.__openAdminSidebar && window.__openAdminSidebar()">
                 <i class='bx bx-menu text-2xl'></i>
             </button>
             <div class="flex items-center gap-2">
                 <i class='bx bx-calendar-event text-red-600 text-2xl'></i>
-                <h1 class="text-[15px] sm:text-[17px] md:text-[18px] font-semibold text-gray-800">
-                    Manage Terms
-                </h1>
-
-
+                <h1 class="text-[15px] sm:text-[17px] md:text-[18px] font-semibold text-gray-800">Manage Terms</h1>
             </div>
             <div class="ml-auto text-xs">
                 <span class="text-gray-500">Active Term:</span>
@@ -173,7 +160,7 @@ while ($row = mysqli_fetch_assoc($res)) {
         </div>
     </header>
 
-    <!-- Desktop header -->
+    <!-- Desktop header (UNCHANGED) -->
     <div class="hidden lg:flex fixed top-0 left-64 right-0 z-20 bg-white border-b border-gray-200 px-6 py-4 items-center justify-between">
         <div class="flex items-center gap-2">
             <i class='bx bx-calendar-event text-red-600 text-2xl'></i>
@@ -182,205 +169,164 @@ while ($row = mysqli_fetch_assoc($res)) {
         <div class="text-sm">
             <span class="text-gray-500">Active Term:</span>
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                         <?= $active_id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
+                     <?= $active_id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
                 <?= h($active_label) ?>
             </span>
         </div>
     </div>
 
-
     <main class="max-w-7xl mx-auto p-4 lg:pt-20">
 
-        <!-- Flash message -->
         <?php if (!empty($msg)): ?>
-            <div id="flash"
-                class="rounded border px-3 py-2 text-sm flex items-center gap-2
-                    <?= $msg_type === 'success' ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800' ?>">
+            <div id="flash" class="rounded border px-3 py-2 text-sm flex items-center gap-2
+            <?= $msg_type === 'success' ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800' ?>">
                 <i class='bx <?= $msg_type === 'success' ? 'bx-check-circle' : 'bx-error-circle' ?> text-xl'></i>
                 <span><?= $msg ?></span>
             </div>
         <?php endif; ?>
 
-        <!-- Quick actions: Set active + Add term -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- Set Active Term -->
-            <section class="bg-white border border-gray-200 rounded-lg p-4">
-                <h2 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <i class='bx bx-check-circle text-red-600'></i>
-                    <span>Set Active Term</span>
-                </h2>
-                <form method="post" class="space-y-2">
-                    <label class="text-sm text-gray-600">Choose the term that students will evaluate in.</label>
-                    <select name="term_id" required class="w-full border border-gray-300 px-3 py-2 rounded">
+        <!-- Toolbar -->
+        <div class="mt-2 flex items-center justify-between">
+            <div class="text-sm text-gray-600">Manage your school terms. Set which one is active.</div>
+            <button type="button" id="openAddTerm"
+                class="no-print inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-2 rounded">
+                <i class='bx bx-plus'></i> Add New Term
+            </button>
+        </div>
+
+        <!-- Terms Table (simple) -->
+        <section class="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+            <div class="hidden md:block overflow-x-auto">
+                <table class="min-w-full text-sm border">
+                    <thead class="bg-gray-50">
+                        <tr class="text-left">
+                            <th class="border px-3 py-2">Term</th>
+                            <th class="border px-3 py-2">Start</th>
+                            <th class="border px-3 py-2">End</th>
+                            <th class="border px-3 py-2">Status</th>
+                            <th class="border px-3 py-2 no-print">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         <?php foreach ($terms as $t): ?>
-                            <option value="<?= $t['id'] ?>" <?= $t['is_active'] ? 'selected' : '' ?>>
-                                <?= h($t['label']) ?> (<?= h($t['starts_on']) ?> → <?= h($t['ends_on']) ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="submit" name="set_active"
-                        class="no-print w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm flex items-center justify-center gap-2">
-                        <i class='bx bx-check'></i><span>Make Selected Term Active</span>
-                    </button>
-                </form>
-                <p class="mt-2 text-xs text-gray-500">
-                    Tip: Only one term can be active at a time.
-                </p>
-            </section>
-
-            <!-- Add New Term -->
-            <section class="bg-white border border-gray-200 rounded-lg p-4 lg:col-span-2">
-                <h2 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <i class='bx bx-plus-circle text-red-600'></i>
-                    <span>Add New Term</span>
-                </h2>
-                <form method="post" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div class="md:col-span-3">
-                        <label class="block text-sm text-gray-700 mb-1">Term Name</label>
-                        <input type="text" name="label" placeholder="ex. (AY 2025–2026 • 2nd Semester)" required
-                            class="border border-gray-300 w-full px-3 py-2 rounded">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-700 mb-1">Starts On</label>
-                        <input type="date" name="starts_on" required
-                            class="border border-gray-300 w-full px-3 py-2 rounded">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-700 mb-1">Ends On</label>
-                        <input type="date" name="ends_on" required
-                            class="border border-gray-300 w-full px-3 py-2 rounded">
-                    </div>
-                    <div class="md:col-span-3">
-                        <button type="submit" name="add_term"
-                            class="no-print bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm inline-flex items-center gap-2">
-                            <i class='bx bx-save'></i><span>Add Term</span>
-                        </button>
-                    </div>
-                </form>
-                <ul class="mt-3 text-xs text-gray-500 list-disc pl-5 space-y-1">
-                    <li>Use a clear name (e.g., “AY 2025–2026 • 1st Sem”).</li>
-                    <li>Dates should cover the evaluation period.</li>
-                </ul>
-            </section>
-        </div>
-
-        <!-- All Terms -->
-        <div class="mt-6">
-            <section class="bg-white border border-gray-200 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="font-semibold text-gray-800 flex items-center gap-2">
-                        <i class='bx bx-list-ul text-red-600'></i>
-                        <span>All Terms</span>
-                    </h2>
-                    <button type="button" onclick="window.print()"
-                        class="no-print bg-white border border-gray-300 px-3 py-2 rounded text-sm hover:bg-gray-50 inline-flex items-center gap-2">
-                        <i class='bx bx-printer'></i> Print
-                    </button>
-                </div>
-
-                <!-- Cards on small screens; table on md+ -->
-                <div class="md:hidden grid grid-cols-1 gap-3">
-                    <?php foreach ($terms as $t): ?>
-                        <?php $isActive = (int)$t['is_active'] === 1; ?>
-                        <div class="border border-gray-200 rounded p-4">
-                            <div class="flex items-center justify-between">
-                                <h3 class="font-semibold text-gray-900"><?= h($t['label']) ?></h3>
-                                <span class="text-xs px-2 py-0.5 rounded-full <?= $isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
-                                    <?= $isActive ? 'Active' : 'Inactive' ?>
-                                </span>
-                            </div>
-                            <div class="mt-2 text-sm text-gray-700">
-                                <div class="flex items-center gap-2">
-                                    <i class='bx bx-calendar'></i>
-                                    <span><?= fmt_date($t['starts_on']) ?> — <?= fmt_date($t['ends_on']) ?></span>
-                                </div>
-                            </div>
-                            <div class="no-print mt-3 flex gap-2">
-                                <form method="post" class="flex-1">
-                                    <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
-                                    <button type="submit" name="set_active"
-                                        class="w-full <?= $isActive ? 'bg-gray-200 text-gray-700 cursor-default' : 'bg-red-600 hover:bg-red-700 text-white' ?> px-3 py-2 rounded text-sm">
-                                        <?= $isActive ? 'Currently Active' : 'Make Active' ?>
-                                    </button>
-                                </form>
-                                <form method="post" class="flex-1" onsubmit="return confirm('Are you sure you want to delete this term?');">
-                                    <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
-                                    <button type="submit" name="delete_term"
-                                        class="w-full px-3 py-2 rounded text-sm bg-gray-100 hover:bg-red-100 text-red-700 border border-red-300">
-                                        <i class='bx bx-trash'></i> Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="hidden md:block overflow-x-auto">
-                    <table class="min-w-full text-sm border">
-                        <thead class="bg-gray-50">
-                            <tr class="text-left">
-                                <th class="border px-3 py-2">Term</th>
-                                <th class="border px-3 py-2">Start</th>
-                                <th class="border px-3 py-2">End</th>
-                                <th class="border px-3 py-2">Status</th>
-                                <th class="border px-3 py-2 no-print">Action</th>
+                            <?php
+                            $isActive = (int)$t['is_active'] === 1;
+                            $confirmSetActive = $isActive ? 'true' : "confirm('Set " . addslashes($t['label']) . " as the active term?')";
+                            $confirmDelete = $isActive
+                                ? "alert('You cannot delete the active term.'); return false;"
+                                : "return confirm('Delete this term? This cannot be undone.')";
+                            ?>
+                            <tr class="odd:bg-white even:bg-gray-50">
+                                <td class="border px-3 py-2 font-medium text-gray-900">
+                                    <?= h($t['label']) ?> <?= $isActive ? '<span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800">Active</span>' : '' ?>
+                                </td>
+                                <td class="border px-3 py-2"><?= fmt_date($t['starts_on']) ?></td>
+                                <td class="border px-3 py-2"><?= fmt_date($t['ends_on']) ?></td>
+                                <td class="border px-3 py-2"><?= $isActive ? 'Active' : 'Inactive' ?></td>
+                                <td class="border px-3 py-2 no-print">
+                                    <form method="post" class="inline" onsubmit="return <?= $confirmSetActive ?>;">
+                                        <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
+                                        <button type="submit" name="set_active"
+                                            class="px-3 py-1.5 rounded text-xs <?= $isActive ? 'bg-gray-200 text-gray-700 cursor-default' : 'bg-red-600 hover:bg-red-700 text-white' ?>">
+                                            <?= $isActive ? 'Current' : 'Set Active' ?>
+                                        </button>
+                                    </form>
+                                    <form method="post" class="inline" onsubmit="<?= htmlspecialchars($confirmDelete, ENT_QUOTES) ?>">
+                                        <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
+                                        <button type="submit" name="delete_term"
+                                            class="px-3 py-1.5 rounded text-xs <?= $isActive ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' : 'bg-gray-100 hover:bg-red-100 text-red-700 border border-red-300' ?>"
+                                            <?= $isActive ? 'disabled' : '' ?>>
+                                            <i class='bx bx-trash'></i> Delete
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($terms as $t): ?>
-                                <?php $isActive = (int)$t['is_active'] === 1; ?>
-                                <tr class="odd:bg-white even:bg-gray-50">
-                                    <td class="border px-3 py-2 font-medium text-gray-900"><?= h($t['label']) ?></td>
-                                    <td class="border px-3 py-2"><?= fmt_date($t['starts_on']) ?></td>
-                                    <td class="border px-3 py-2"><?= fmt_date($t['ends_on']) ?></td>
-                                    <td class="border px-3 py-2">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium <?= $isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
-                                            <?= $isActive ? 'Active' : 'Inactive' ?>
-                                        </span>
-                                    </td>
-                                    <td class="border px-3 py-2 no-print">
-                                        <form method="post" class="inline">
-                                            <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
-                                            <button type="submit" name="set_active"
-                                                class="px-3 py-1.5 rounded text-xs <?= $isActive ? 'bg-gray-200 text-gray-700 cursor-default' : 'bg-red-600 hover:bg-red-700 text-white' ?>">
-                                                <?= $isActive ? 'Current' : 'Make Active' ?>
-                                            </button>
-                                        </form>
-                                        <form method="post" class="inline" onsubmit="return confirm('Are you sure you want to delete this term?');">
-                                            <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
-                                            <button type="submit" name="delete_term"
-                                                class="px-3 py-1.5 rounded text-xs bg-gray-100 hover:bg-red-100 text-red-700 border border-red-300">
-                                                <i class='bx bx-trash'></i> Delete
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (empty($terms)): ?>
-                                <tr>
-                                    <td colspan="5" class="border px-3 py-6 text-center text-gray-600">
-                                        No terms yet. Add your first term above.
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </div>
+                        <?php endforeach; ?>
+                        <?php if (empty($terms)): ?>
+                            <tr>
+                                <td colspan="5" class="border px-3 py-6 text-center text-gray-600">No terms yet.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
 
+            <!-- Cards on small screens -->
+            <div class="md:hidden grid grid-cols-1 gap-3">
+                <?php foreach ($terms as $t): ?>
+                    <?php
+                    $isActive = (int)$t['is_active'] === 1;
+                    $confirmSetActive = $isActive ? 'true' : "confirm('Set " . addslashes($t['label']) . " as the active term?')";
+                    $confirmDelete = $isActive
+                        ? "alert('You cannot delete the active term.'); return false;"
+                        : "return confirm('Delete this term? This cannot be undone.')";
+                    ?>
+                    <div class="border border-gray-200 rounded p-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-gray-900"><?= h($t['label']) ?></h3>
+                            <span class="text-[11px] px-2 py-0.5 rounded-full <?= $isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
+                                <?= $isActive ? 'Active' : 'Inactive' ?>
+                            </span>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-700"><?= fmt_date($t['starts_on']) ?> — <?= fmt_date($t['ends_on']) ?></div>
+                        <div class="no-print mt-3 flex gap-2">
+                            <form method="post" class="flex-1" onsubmit="return <?= $confirmSetActive ?>;">
+                                <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
+                                <button type="submit" name="set_active"
+                                    class="w-full <?= $isActive ? 'bg-gray-200 text-gray-700 cursor-default' : 'bg-red-600 hover:bg-red-700 text-white' ?> px-3 py-2 rounded text-sm">
+                                    <?= $isActive ? 'Currently Active' : 'Set Active' ?>
+                                </button>
+                            </form>
+                            <form method="post" class="flex-1" onsubmit="<?= htmlspecialchars($confirmDelete, ENT_QUOTES) ?>">
+                                <input type="hidden" name="term_id" value="<?= $t['id'] ?>">
+                                <button type="submit" name="delete_term"
+                                    class="w-full px-3 py-2 rounded text-sm <?= $isActive ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' : 'bg-gray-100 hover:bg-red-100 text-red-700 border border-red-300' ?>"
+                                    <?= $isActive ? 'disabled' : '' ?>>
+                                    <i class='bx bx-trash'></i> Delete
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
     </main>
 
-    <!-- Optional: Auto-hide flash after a few seconds -->
+    <!-- Include the modal file -->
+    <?php include __DIR__ . '/modals/add_term_modal.php'; ?>
+
     <script>
+        // Flash fade
         const flash = document.getElementById('flash');
         if (flash) {
             setTimeout(() => {
-                flash.style.transition = 'opacity .3s ease';
+                flash.style.transition = 'opacity .3s';
                 flash.style.opacity = '0';
                 setTimeout(() => flash.remove(), 300);
             }, 3500);
         }
+
+        // Modal open/close
+        const modal = document.getElementById('addTermModal');
+        const openBtn = document.getElementById('openAddTerm');
+        const closeBtns = document.querySelectorAll('[data-close-add-term]');
+        const body = document.body;
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            body.classList.add('modal-open');
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            body.classList.remove('modal-open');
+        }
+
+        openBtn?.addEventListener('click', openModal);
+        closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+        modal?.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
     </script>
 </body>
 
