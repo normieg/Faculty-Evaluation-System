@@ -90,29 +90,6 @@ if ($rs) while ($r = mysqli_fetch_assoc($rs)) $rows[] = $r;
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
     <style>
-        .avatar {
-            width: 42px;
-            height: 42px;
-        }
-
-        .avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 9999px;
-        }
-
-        .avatar-fallback {
-            width: 42px;
-            height: 42px;
-            border-radius: 9999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.9rem;
-        }
-
         thead th {
             position: sticky;
             top: 0;
@@ -186,7 +163,7 @@ if ($rs) while ($r = mysqli_fetch_assoc($rs)) $rows[] = $r;
                 <table class="min-w-full text-sm text-gray-800">
                     <thead>
                         <tr class="text-left text-gray-700 uppercase text-xs border-b">
-                            <th class="pl-16 py-3 font-bold ">Faculty</th>
+                            <th class="pl-20 py-3 font-bold ml- ">Faculty</th>
                             <th class="px-4 py-3  font-bold text-center">Programs</th>
                             <th class="px-4 py-3  text-center font-bold">Submitted</th>
                             <th class="px-4 py-3  font-bold text-center">Status</th>
@@ -196,8 +173,8 @@ if ($rs) while ($r = mysqli_fetch_assoc($rs)) $rows[] = $r;
                         <?php foreach ($rows as $r): $isActive = (int)$r['is_active'] === 1; ?>
                             <tr class="hover:bg-gray-50 transition text-center">
                                 <td class="px-4 py-3 border-t">
-                                    <div class="flex items-center gap-3 text-center ">
-                                        <div class="avatar">
+                                    <div class="flex items-center gap-3 text-center rounded-full w-40 sm:w-40 md:w-60 lg:w-72 ml-10">
+                                        <div class="avatar ">
                                             <?php if (!empty($r['photo_url'])): ?>
                                                 <img src="../storage/faculty_profiles/<?= h($r['photo_url']) ?>" alt="<?= h($r['full_name']) ?>">
                                             <?php else: ?>
