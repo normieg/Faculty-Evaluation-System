@@ -46,10 +46,9 @@ function nav_class($name, $active)
         </a>
 
         <a href="admin_faculty.php" class="<?= nav_class('faculty', $active) ?>">
-            <i class='bx bxs-user-voice'></i> <span>Manage Faculty</span>
+            <i class='bx bxs-user-voice'></i> <span>Manage & Assign Faculty</span>
         </a>
 
-        <!-- ✅ New Link: Faculty Assignments -->
         <a href="admin_faculty_assignments.php" class="<?= nav_class('faculty_map', $active) ?>">
             <i class='bx bx-map-pin'></i> <span>Faculty Assignments</span>
         </a>
