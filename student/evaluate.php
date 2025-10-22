@@ -56,8 +56,8 @@ if (!$faculty || !$faculty['is_active']) {
 }
 
 // Build rater_hash (only if term exists)
-$school_id  = $_SESSION['school_id'];
-$rater_hash = ($term_id > 0) ? hash('sha256', $school_id . '|' . $term_id . '|' . ANON_SALT) : '';
+$school_id  = $_SESSION['school_id'] ?? '';
+$rater_hash = ($term_id > 0 && $school_id !== '') ? hash('sha256', $school_id . '|' . $term_id . '|' . ANON_SALT) : '';
 
 // Load sections and criteria (ordered)
 $sections = [];
@@ -91,6 +91,9 @@ if (!$err && $term_id > 0 && $rater_hash) {
     $already = $chk && mysqli_num_rows($chk) > 0;
 }
 
+// for optional server-side scroll-point
+$first_missing_cid = 0;
+
 // Handle submit
 if (!$err && isset($_POST['submit_eval'])) {
     if ($term_id <= 0) {
@@ -108,11 +111,23 @@ if (!$err && isset($_POST['submit_eval'])) {
         foreach ($criteria as $sid => $list) $totalCriteria += count($list);
         $validCount = 0;
 
+        // Build lookups so we can reference "Test X question #Y"
+        $crit_index = [];       // criterion_id => 1-based index inside its section
+        $crit_section = [];     // criterion_id => section title
+        foreach ($criteria as $sid2 => $list2) {
+            foreach ($list2 as $idx2 => $c2) {
+                $crit_index[(int)$c2['id']] = $idx2 + 1;
+                $crit_section[(int)$c2['id']] = $sections[$sid2]['title'] ?? 'Section';
+            }
+        }
+
         foreach ($criteria as $list) {
             foreach ($list as $c) {
                 $cid = (int)$c['id'];
                 if (isset($scores[$cid]) && in_array((int)$scores[$cid], [1, 2, 3, 4, 5], true)) {
                     $validCount++;
+                } else {
+                    if ($first_missing_cid === 0) $first_missing_cid = $cid;
                 }
             }
         }
@@ -120,16 +135,27 @@ if (!$err && isset($_POST['submit_eval'])) {
         if ($totalCriteria === 0) {
             $err = "Evaluation form is not configured.";
         } elseif ($validCount !== $totalCriteria) {
-            $err = "Please answer all items before submitting.";
+            if ($first_missing_cid) {
+                $secTitle = $crit_section[$first_missing_cid] ?? 'the form';
+                $qNum     = $crit_index[$first_missing_cid] ?? '';
+                $err = "Please fill out all items in Test 1 and Test 2. First missing: {$secTitle}, question #{$qNum}.";
+            } else {
+                $err = "Please answer all items before submitting.";
+            }
         } else {
             // Save in a transaction
             mysqli_begin_transaction($conn);
             try {
                 $ins = mysqli_query($conn, "
                     INSERT INTO evaluations (faculty_id, term_id, rater_hash, like_because, dislike_because, suggest_will)
-                    VALUES ('$fid', '$term_id', '$rater_hash', '" . mysqli_real_escape_string($conn, $like_because) . "',
-                            '" . mysqli_real_escape_string($conn, $dislike_because) . "',
-                            '" . mysqli_real_escape_string($conn, $suggest_will) . "')
+                    VALUES (
+                        '$fid',
+                        '$term_id',
+                        '$rater_hash',
+                        '" . mysqli_real_escape_string($conn, $like_because) . "',
+                        '" . mysqli_real_escape_string($conn, $dislike_because) . "',
+                        '" . mysqli_real_escape_string($conn, $suggest_will) . "'
+                    )
                 ");
                 if (!$ins) throw new Exception("Failed to save evaluation.");
 
@@ -147,8 +173,8 @@ if (!$err && isset($_POST['submit_eval'])) {
                     }
                 }
                 mysqli_commit($conn);
-                $ok = "Thank you! Your evaluation has been submitted.";
-                // Prevent resubmit on refresh
+
+                // Redirect to avoid double submit on refresh
                 header("Location: " . basename(__FILE__) . "?fid=" . $fid . "&ok=1");
                 exit;
             } catch (Exception $e) {
@@ -190,7 +216,14 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
         <!-- Card -->
         <div class="bg-white border border-gray-300 rounded p-3">
 
-            <!-- Alerts -->
+            <!-- JS-driven top alert (for first missing pointer) -->
+            <div id="topAlert"
+                class="mb-3 bg-red-100 border border-red-400 text-red-800 p-2 rounded text-sm flex items-center space-x-2 hidden">
+                <i class='bx bxs-error-circle'></i>
+                <span></span>
+            </div>
+
+            <!-- Server-side alerts -->
             <?php if (!empty($err)): ?>
                 <div class="mb-3 bg-red-100 border border-red-400 text-red-800 p-2 rounded text-sm flex items-center space-x-2">
                     <i class='bx bxs-error-circle'></i><span><?= htmlspecialchars($err) ?></span>
@@ -210,7 +243,7 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
                     $exists = $photo && file_exists(dirname(__DIR__) . "/storage/faculty_profiles/" . $faculty['photo_url']);
                     ?>
                     <?php if ($exists): ?>
-                        <img src="<?= $photo ?>" class="h-16 w-16 rounded-full object-cover border">
+                        <img src="<?= htmlspecialchars($photo) ?>" class="h-16 w-16 rounded-full object-cover border" alt="Faculty photo">
                     <?php else: ?>
                         <div class="h-16 w-16 rounded-full border flex items-center justify-center text-xs text-gray-500">No photo</div>
                     <?php endif; ?>
@@ -239,7 +272,7 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
                 </div>
 
                 <!-- Form -->
-                <form method="post" action="">
+                <form method="post" action="" id="evalForm" novalidate>
                     <?php foreach ($sections as $sid => $sec): ?>
                         <div class="border border-gray-300 rounded p-3 mb-3">
                             <p class="font-semibold text-gray-800 mb-2">
@@ -250,7 +283,11 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
                                 <p class="text-sm text-gray-600">No items defined.</p>
                             <?php else: ?>
                                 <?php foreach ($criteria[$sid] as $idx => $c): ?>
-                                    <div class="border border-gray-200 rounded p-2 mb-2">
+                                    <div
+                                        class="criterion border border-gray-200 rounded p-2 mb-2"
+                                        id="crit-<?= (int)$c['id'] ?>"
+                                        data-section="<?= htmlspecialchars($sec['title']) ?>"
+                                        data-qnum="<?= ($idx + 1) ?>">
                                         <div class="text-sm text-gray-800 mb-2">
                                             <?= ($idx + 1) ?>. <?= htmlspecialchars($c['prompt']) ?>
                                         </div>
@@ -258,18 +295,18 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
                                         <div class="flex items-center space-x-2">
                                             <?php for ($s = 1; $s <= 5; $s++): ?>
                                                 <label class="flex items-center justify-center h-8 w-8 border rounded-full cursor-pointer">
-                                                    <input type="radio" name="score[<?= (int)$c['id'] ?>]" value="<?= $s ?>" class="hidden" required>
+                                                    <input type="radio"
+                                                        name="score[<?= (int)$c['id'] ?>]"
+                                                        value="<?= $s ?>"
+                                                        class="hidden"
+                                                        required>
                                                     <span class="text-sm"><?= $s ?></span>
                                                 </label>
                                             <?php endfor; ?>
-                                            <span class="ml-auto text-xs text-gray-500">
-                                                <?php
-                                                // little legend on the right using the last selected value idea from mock
-                                                // (static hint only)
-                                                echo " ";
-                                                ?>
-                                            </span>
+                                            <span class="ml-auto text-xs text-gray-500"></span>
                                         </div>
+                                        <!-- Inline error -->
+                                        <p class="crit-error mt-1 text-xs text-red-600 hidden">Please answer this question.</p>
                                     </div>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -324,9 +361,112 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
                 const chosen = e.target.closest('label');
                 chosen.classList.remove('border-gray-300');
                 chosen.classList.add('border-red-600', 'text-red-600');
+
+                // If they fixed a missing one, hide the inline error and red border
+                const crit = e.target.closest('.criterion');
+                if (crit) {
+                    crit.classList.remove('border-red-500', 'ring-1', 'ring-red-400');
+                    const err = crit.querySelector('.crit-error');
+                    if (err) err.classList.add('hidden');
+                }
             }
         });
     </script>
+
+    <!-- Client-side validator: blocks submit, points to first missing, scrolls & highlights -->
+    <script>
+        (function() {
+            const form = document.getElementById('evalForm');
+            if (!form) return;
+
+            form.addEventListener('submit', function(e) {
+                // Reset any previous visual errors
+                document.querySelectorAll('.criterion').forEach(block => {
+                    block.classList.remove('border-red-500', 'ring-1', 'ring-red-400');
+                    const err = block.querySelector('.crit-error');
+                    if (err) err.classList.add('hidden');
+                });
+                const topAlert = document.getElementById('topAlert');
+                if (topAlert) {
+                    topAlert.classList.add('hidden');
+                    const span = topAlert.querySelector('span');
+                    if (span) span.textContent = '';
+                }
+
+                // Validate every question has a selected radio
+                const missingBlocks = [];
+                document.querySelectorAll('.criterion').forEach(block => {
+                    const radios = block.querySelectorAll('input[type="radio"]');
+                    let checked = false;
+                    radios.forEach(r => {
+                        if (r.checked) checked = true;
+                    });
+                    if (!checked) {
+                        missingBlocks.push(block);
+                        block.classList.add('border-red-500', 'ring-1', 'ring-red-400');
+                        const err = block.querySelector('.crit-error');
+                        if (err) err.classList.remove('hidden');
+                    }
+                });
+
+                if (missingBlocks.length > 0) {
+                    e.preventDefault();
+
+                    // Build friendly message
+                    const first = missingBlocks[0];
+                    const section = first.dataset.section || 'the form';
+                    const qnum = first.dataset.qnum || '';
+
+                    if (topAlert) {
+                        topAlert.classList.remove('hidden');
+                        const span = topAlert.querySelector('span');
+                        if (span) {
+                            span.innerHTML =
+                                "Please fill out all items in <b>Test 1</b> and <b>Test 2</b>. " +
+                                "First missing answer is in <b>" + section + "</b>, question <b>#" + qnum + "</b>.";
+                        }
+                    }
+
+                    // Scroll the first missing question into view and briefly pulse it
+                    first.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                    first.animate(
+                        [{
+                            backgroundColor: 'transparent'
+                        }, {
+                            backgroundColor: '#fee2e2'
+                        }, {
+                            backgroundColor: 'transparent'
+                        }], {
+                            duration: 900,
+                            easing: 'ease-in-out'
+                        }
+                    );
+                }
+            });
+        })();
+    </script>
+
+    <?php if (!empty($err) && isset($first_missing_cid) && $first_missing_cid): ?>
+        <!-- If server-side caught a missing item (JS off / tampered), also scroll to it -->
+        <script>
+            window.addEventListener('DOMContentLoaded', function() {
+                const el = document.getElementById('crit-<?= (int)$first_missing_cid ?>');
+                if (el) {
+                    el.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                    el.classList.add('ring-1', 'ring-red-400', 'border-red-500');
+                    const p = el.querySelector('.crit-error');
+                    if (p) p.classList.remove('hidden');
+                }
+            });
+        </script>
+    <?php endif; ?>
+
     <script src="../assets/js/form-submit.js"></script>
 </body>
 
