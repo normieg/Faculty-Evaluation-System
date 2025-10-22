@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/../database.php';
 
+// Ensure student area uses its own session namespace and start session before accessing $_SESSION
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_name('FES_STUDENT');
+    session_start();
+}
+
 if (!defined('ANON_SALT')) {
     define('ANON_SALT', 'change-this-to-a-long-random-secret');
 }
@@ -30,9 +36,18 @@ $fid = isset($_GET['fid']) ? (int)$_GET['fid'] : 0;
 // Load faculty
 $faculty = null;
 if ($fid > 0) {
-    $fr = mysqli_query($conn, "SELECT id, full_name, photo_url, is_active FROM faculty WHERE id='$fid' LIMIT 1");
+    $fr = mysqli_query($conn, "SELECT id, first_name, middle_name, last_name, suffix, photo_url, is_active FROM faculty WHERE id='$fid' LIMIT 1");
     if ($fr && mysqli_num_rows($fr) === 1) {
         $faculty = mysqli_fetch_assoc($fr);
+        // build full display name
+        $first = trim($faculty['first_name'] ?? '');
+        $middle = trim($faculty['middle_name'] ?? '');
+        $last = trim($faculty['last_name'] ?? '');
+        $suffix = trim($faculty['suffix'] ?? '');
+        $parts = array_filter([$first, $middle, $last], fn($x) => $x !== '');
+        $display = trim(implode(' ', $parts));
+        if ($suffix !== '') $display .= ' ' . $suffix;
+        $faculty['full_name'] = $display ?: '(No name)';
     }
 }
 
@@ -312,6 +327,7 @@ if (isset($_GET['ok']) && $_GET['ok'] == '1') {
             }
         });
     </script>
+    <script src="../assets/js/form-submit.js"></script>
 </body>
 
 </html>

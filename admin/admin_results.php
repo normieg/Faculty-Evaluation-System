@@ -1,74 +1,48 @@
 <?php
 require __DIR__ . '/../database.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
+// admin session
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_ADMIN');
+    session_start();
+}
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit;
 }
 
-/* Active term (simple) */
-$no_term = false;
-$term = mysqli_query($conn, "SELECT id, label FROM terms WHERE is_active=1 LIMIT 1");
-if (!$term || mysqli_num_rows($term) === 0) {
-    $no_term = true;
-    $term_id = 0;
-    $term_label = 'None';
-} else {
-    $term = mysqli_fetch_assoc($term);
-    $term_id = (int)$term['id'];
-    $term_label = $term['label'];
-}
-
-/* Filters + Programs */
-$filter_program_id = isset($_GET['program_id']) ? intval($_GET['program_id']) : 0;
-$filter_q = isset($_GET['q']) ? trim($_GET['q']) : '';
-
-$programs = [];
-$pr = mysqli_query($conn, "SELECT id, name FROM programs WHERE is_active=1 ORDER BY name");
-while ($row = mysqli_fetch_assoc($pr)) {
-    $programs[] = $row;
-}
-
-/* Faculty list (optional filter) */
-$faculty = [];
-if (!$no_term) {
-    if ($filter_program_id > 0) {
-        $fq = "
-            SELECT DISTINCT f.id, f.full_name
-            FROM faculty f
-            JOIN faculty_programs fp ON fp.faculty_id=f.id
-            WHERE f.is_active=1 AND fp.program_id='{$filter_program_id}'
-            ORDER BY f.full_name
-        ";
-    } else {
-        $fq = "SELECT id, full_name FROM faculty WHERE is_active=1 ORDER BY full_name";
-    }
-    $fr = mysqli_query($conn, $fq);
-    while ($row = mysqli_fetch_assoc($fr)) {
-        if ($filter_q !== '' && stripos($row['full_name'], $filter_q) === false) continue;
-        $faculty[] = $row;
-    }
-}
-
-/* Helpers */
+/* ---------- Helpers ---------- */
 function h($s)
 {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
+function build_fullname_row(array $r): string
+{
+    $first  = trim($r['first_name']  ?? '');
+    $middle = trim($r['middle_name'] ?? '');
+    $last   = trim($r['last_name']   ?? '');
+    $suffix = trim($r['suffix']      ?? '');
+    $parts  = array_filter([$first, $middle, $last], fn($x) => $x !== '');
+    $name   = trim(implode(' ', $parts));
+    if ($suffix !== '') $name .= ' ' . $suffix;
+    return $name !== '' ? $name : '(No name)';
+}
+
 /* Weighted average per faculty: returns [avg|null, count] */
 function faculty_stats($conn, $faculty_id, $term_id)
 {
+    // avg per evaluation section (criterion belongs to a section)
     $sql = "
         SELECT c.section_id, AVG(es.score) AS avg_score
         FROM evaluations e
         JOIN evaluation_scores es ON es.evaluation_id = e.id
-        JOIN eval_criteria c ON c.id = es.criterion_id
+        JOIN eval_criteria c      ON c.id = es.criterion_id
         WHERE e.faculty_id='{$faculty_id}' AND e.term_id='{$term_id}'
         GROUP BY c.section_id
     ";
     $res = mysqli_query($conn, $sql);
 
+    // section weights
     $weights = [];
     $wres = mysqli_query($conn, "SELECT id, weight_pct FROM eval_sections");
     while ($wrow = mysqli_fetch_assoc($wres)) {
@@ -86,6 +60,7 @@ function faculty_stats($conn, $faculty_id, $term_id)
     }
     if ($has) $weighted = $weighted / 100.0;
 
+    // number of submitted evaluations
     $cnt = 0;
     $cres = mysqli_query($conn, "SELECT COUNT(*) AS c FROM evaluations WHERE faculty_id='{$faculty_id}' AND term_id='{$term_id}'");
     if ($cres) $cnt = (int)mysqli_fetch_assoc($cres)['c'];
@@ -93,7 +68,59 @@ function faculty_stats($conn, $faculty_id, $term_id)
     return [$has ? round($weighted, 2) : null, $cnt];
 }
 
-/* Export CSV */
+/* ---------- Active term ---------- */
+$no_term = false;
+$term = mysqli_query($conn, "SELECT id, label FROM terms WHERE is_active=1 LIMIT 1");
+if (!$term || mysqli_num_rows($term) === 0) {
+    $no_term = true;
+    $term_id = 0;
+    $term_label = 'None';
+} else {
+    $term = mysqli_fetch_assoc($term);
+    $term_id = (int)$term['id'];
+    $term_label = $term['label'];
+}
+
+/* ---------- Filters + Programs ---------- */
+$filter_program_id = isset($_GET['program_id']) ? intval($_GET['program_id']) : 0;
+$filter_q = isset($_GET['q']) ? trim($_GET['q']) : '';
+
+$programs = [];
+$pr = mysqli_query($conn, "SELECT id, name FROM programs WHERE is_active=1 ORDER BY name");
+while ($row = mysqli_fetch_assoc($pr)) {
+    $programs[] = $row;
+}
+
+/* ---------- Faculty list (optional program + search filter) ---------- */
+$faculty = [];
+if (!$no_term) {
+    if ($filter_program_id > 0) {
+        $fq = "
+            SELECT DISTINCT f.id, f.first_name, f.middle_name, f.last_name, f.suffix
+            FROM faculty f
+            JOIN faculty_programs fp ON fp.faculty_id = f.id
+            WHERE f.is_active = 1
+              AND fp.program_id = {$filter_program_id}
+            ORDER BY f.last_name, f.first_name, f.middle_name
+        ";
+    } else {
+        $fq = "
+            SELECT id, first_name, middle_name, last_name, suffix
+            FROM faculty
+            WHERE is_active = 1
+            ORDER BY last_name, first_name, middle_name
+        ";
+    }
+    $fr = mysqli_query($conn, $fq);
+    while ($row = mysqli_fetch_assoc($fr)) {
+        $display = build_fullname_row($row);
+        if ($filter_q !== '' && stripos($display, $filter_q) === false) continue;
+        $row['display_name'] = $display;
+        $faculty[] = $row;
+    }
+}
+
+/* ---------- Export CSV ---------- */
 if (!$no_term && isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=results_' . $term_id . '.csv');
@@ -101,8 +128,8 @@ if (!$no_term && isset($_GET['export']) && $_GET['export'] === 'csv') {
     fputcsv($output, ['#', 'Faculty', 'Weighted Avg (1–5)', 'Evaluations']);
     $rownum = 1;
     foreach ($faculty as $f) {
-        list($avg, $cnt) = faculty_stats($conn, (int)$f['id'], $term_id);
-        fputcsv($output, [$rownum++, $f['full_name'], ($avg === null ? '' : $avg), $cnt]);
+        [$avg, $cnt] = faculty_stats($conn, (int)$f['id'], $term_id);
+        fputcsv($output, [$rownum++, $f['display_name'], ($avg === null ? '' : $avg), $cnt]);
     }
     fclose($output);
     exit;
@@ -234,12 +261,25 @@ if (!$no_term && isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <?php
                                 $rownum = 1;
                                 foreach ($faculty as $f):
-                                    list($avg, $cnt) = faculty_stats($conn, (int)$f['id'], $term_id);
+                                    [$avg, $cnt] = faculty_stats($conn, (int)$f['id'], $term_id);
+
+                                    // Optional: color band per “How to read scores”
+                                    $band = 'bg-red-50 text-red-800';
+                                    if ($avg === null) $band = '';
+                                    else if ($avg >= 4.5) $band = 'bg-green-50 text-green-800';
+                                    else if ($avg >= 3.5) $band = 'bg-blue-50 text-blue-800';
+                                    else if ($avg >= 2.5) $band = 'bg-yellow-50 text-yellow-800';
                                 ?>
                                     <tr class="odd:bg-white even:bg-gray-50">
                                         <td class="border px-3 py-2"><?= $rownum++ ?></td>
-                                        <td class="border px-3 py-2 font-medium text-gray-800"><?= h($f['full_name']) ?></td>
-                                        <td class="border px-3 py-2"><?= $avg === null ? '—' : $avg ?></td>
+                                        <td class="border px-3 py-2 font-medium text-gray-800"><?= h($f['display_name']) ?></td>
+                                        <td class="border px-3 py-2">
+                                            <?php if ($avg === null): ?>
+                                                —
+                                            <?php else: ?>
+                                                <span class="inline-block px-2 py-0.5 rounded <?= $band ?>"><?= $avg ?></span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="border px-3 py-2"><?= (int)$cnt ?></td>
                                     </tr>
                                 <?php endforeach; ?>

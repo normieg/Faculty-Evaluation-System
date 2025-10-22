@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/../database.php';
 
+// Admin session
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_ADMIN');
+    session_start();
+}
+
 $err = '';
 
 if (isset($_POST['login'])) {

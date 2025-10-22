@@ -183,15 +183,29 @@ window.openAssignModal = function (
 };
 
 // --- Faculty profile view/edit modal
-window.openFacultyProfileModal = function (fid, name, photoUrl) {
+window.openFacultyProfileModal = function (
+  fid,
+  first,
+  middle,
+  last,
+  suffix,
+  photoUrl
+) {
   const modal = document.getElementById("facultyProfileModal");
   if (!modal) return;
 
   modal.classList.remove("hidden");
 
+  // Set the full name in the view
   const nameView = document.getElementById("fp_view_name");
-  if (nameView) nameView.textContent = name || "";
+  if (nameView) {
+    const fullName =
+      [first, middle, last].filter((x) => x && x.trim()).join(" ") +
+      (suffix ? " " + suffix : "");
+    nameView.textContent = fullName || "(No name)";
+  }
 
+  // Set photo
   const img = document.getElementById("fp_view_photo");
   if (img) {
     if (photoUrl) {
@@ -202,13 +216,18 @@ window.openFacultyProfileModal = function (fid, name, photoUrl) {
     }
   }
 
+  // Set form fields
   const editId = document.getElementById("fp_edit_faculty_id");
-  const editName = document.getElementById("fp_edit_name");
-  const editIdDup = document.getElementById("fp_edit_faculty_id_dup");
+  const firstInput = document.getElementById("fp_first_name");
+  const middleInput = document.getElementById("fp_middle_name");
+  const lastInput = document.getElementById("fp_last_name");
+  const suffixInput = document.getElementById("fp_suffix");
   const delId = document.getElementById("fp_delete_faculty_id");
 
   if (editId) editId.value = fid;
-  if (editName) editName.value = name || "";
-  if (editIdDup) editIdDup.value = fid;
+  if (firstInput) firstInput.value = first || "";
+  if (middleInput) middleInput.value = middle || "";
+  if (lastInput) lastInput.value = last || "";
+  if (suffixInput) suffixInput.value = suffix || "";
   if (delId) delId.value = fid;
 };

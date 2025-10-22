@@ -1,5 +1,12 @@
 <?php
-require __DIR__ . '/../database.php'; // session already started here
+require __DIR__ . '/../database.php';
+
+// Start isolated session for student area so student and admin sessions don't collide.
+// Use a distinct session name and start the session before accessing $_SESSION.
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_name('FES_STUDENT');
+    session_start();
+}
 
 $err = '';
 $flash_ok = '';
@@ -306,7 +313,7 @@ if (isset($_POST['register'])) {
                 secSel.innerHTML = '';
                 const head = document.createElement('option');
                 head.value = '';
-                head.textContent = '-- Select Section --';
+                head.textContent = ' Select Section ';
                 secSel.appendChild(head);
 
                 secOriginal.forEach(src => {
@@ -337,6 +344,7 @@ if (isset($_POST['register'])) {
             if (progSel.value && yearSel.value) filterSections();
         })();
     </script>
+    <script src="../assets/js/form-submit.js"></script>
 </body>
 
 </html>

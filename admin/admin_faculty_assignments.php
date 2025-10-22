@@ -3,6 +3,7 @@ require __DIR__ . '/../database.php';
 
 // Start session
 if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_ADMIN');
     session_start();
 }
 
@@ -60,7 +61,10 @@ $submittedSub = $active_term_id > 0
 $sql = "
 SELECT
     f.id,
-    f.full_name,
+    f.first_name,
+    f.middle_name,
+    f.last_name,
+    f.suffix,
     f.photo_url,
     f.is_active,
     COALESCE((
@@ -74,11 +78,21 @@ FROM faculty f
 WHERE {$where_sql}
 ORDER BY
     (SELECT MIN(p2.code) FROM faculty_programs fp2 JOIN programs p2 ON p2.id=fp2.program_id WHERE fp2.faculty_id=f.id) ASC,
-    f.full_name ASC
+    f.last_name ASC, f.first_name ASC, f.middle_name ASC
 ";
 $rows = [];
 $rs = mysqli_query($conn, $sql);
-if ($rs) while ($r = mysqli_fetch_assoc($rs)) $rows[] = $r;
+if ($rs) while ($r = mysqli_fetch_assoc($rs)) {
+    $first = trim($r['first_name'] ?? '');
+    $middle = trim($r['middle_name'] ?? '');
+    $last = trim($r['last_name'] ?? '');
+    $suffix = trim($r['suffix'] ?? '');
+    $parts = array_filter([$first, $middle, $last], fn($x) => $x !== '');
+    $display = trim(implode(' ', $parts));
+    if ($suffix !== '') $display .= ' ' . $suffix;
+    $r['display_name'] = $display ?: '(No name)';
+    $rows[] = $r;
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -176,13 +190,13 @@ if ($rs) while ($r = mysqli_fetch_assoc($rs)) $rows[] = $r;
                                     <div class="flex items-center gap-3 text-center rounded-full w-40 sm:w-40 md:w-60 lg:w-72 ml-10">
                                         <div class="avatar ">
                                             <?php if (!empty($r['photo_url'])): ?>
-                                                <img src="../storage/faculty_profiles/<?= h($r['photo_url']) ?>" alt="<?= h($r['full_name']) ?>">
+                                                <img src="../storage/faculty_profiles/<?= h($r['photo_url']) ?>" alt="<?= h($r['display_name']) ?>">
                                             <?php else: ?>
-                                                <div class="avatar-fallback bg-gray-200 text-gray-700"><?= h(initials($r['full_name'])) ?></div>
+                                                <div class="avatar-fallback bg-gray-200 text-gray-700"><?= h(initials($r['display_name'])) ?></div>
                                             <?php endif; ?>
                                         </div>
                                         <div>
-                                            <div class="font-medium text-gray-900"><?= h($r['full_name']) ?></div>
+                                            <div class="font-medium text-gray-900"><?= h($r['display_name']) ?></div>
                                         </div>
                                     </div>
                                 </td>

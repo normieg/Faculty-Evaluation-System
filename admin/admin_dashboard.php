@@ -1,5 +1,10 @@
 <?php
 require __DIR__ . '/../database.php';
+// Ensure admin session is started with dedicated name
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_ADMIN');
+    session_start();
+}
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit;

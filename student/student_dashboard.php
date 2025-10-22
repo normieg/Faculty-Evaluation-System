@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/../database.php';
 
+// Ensure student area uses its own session namespace and start session before accessing $_SESSION
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_name('FES_STUDENT');
+    session_start();
+}
+
 if (!defined('ANON_SALT')) {
     define('ANON_SALT', 'change-this-to-a-long-random-secret');
 }
@@ -76,24 +82,33 @@ if ($sec > 0) {
 }
 
 $q = "
-SELECT DISTINCT f.id, f.full_name, f.photo_url
+SELECT DISTINCT f.id, f.first_name, f.middle_name, f.last_name, f.suffix, f.photo_url
 FROM faculty f
 JOIN faculty_programs fp
-  ON fp.faculty_id = f.id
+    ON fp.faculty_id = f.id
  AND fp.program_id = {$pid}
 LEFT JOIN faculty_program_years fpy
-  ON fpy.faculty_id = f.id
+    ON fpy.faculty_id = f.id
  AND fpy.program_id = {$pid}
 WHERE f.is_active = 1
-  AND (
-        fpy.year_level IS NULL
-        OR fpy.year_level = {$yl}
-      )
-  AND {$sectionClause}
-ORDER BY f.full_name
+    AND (
+                fpy.year_level IS NULL
+                OR fpy.year_level = {$yl}
+            )
+    AND {$sectionClause}
+ORDER BY f.last_name, f.first_name, f.middle_name
 ";
 $res = mysqli_query($conn, $q);
 while ($row = mysqli_fetch_assoc($res)) {
+    // Build display name from parts
+    $first = trim($row['first_name'] ?? '');
+    $middle = trim($row['middle_name'] ?? '');
+    $last = trim($row['last_name'] ?? '');
+    $suffix = trim($row['suffix'] ?? '');
+    $parts = array_filter([$first, $middle, $last], fn($x) => $x !== '');
+    $display = trim(implode(' ', $parts));
+    if ($suffix !== '') $display .= ' ' . $suffix;
+    $row['display_name'] = $display ?: '(No name)';
     $faculty[] = $row;
 }
 
@@ -202,7 +217,7 @@ function already_evaluated($conn, $fid, $term_id, $rater_hash)
                                 <img src="<?= htmlspecialchars($photoRel) ?>" alt="Faculty Photo"
                                     class="h-28 w-28 rounded-full object-cover border mb-3">
                                 <p class="font-semibold text-gray-800 text-sm mb-3 leading-snug px-2">
-                                    <?= htmlspecialchars($f['full_name']) ?>
+                                    <?= htmlspecialchars($f['display_name']) ?>
                                 </p>
 
                                 <?php if ($done): ?>
@@ -226,6 +241,7 @@ function already_evaluated($conn, $fid, $term_id, $rater_hash)
             <?php endif; ?>
         </div>
     </main>
+    <script src="../assets/js/form-submit.js"></script>
 </body>
 
 </html>

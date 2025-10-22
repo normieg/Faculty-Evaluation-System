@@ -1,6 +1,11 @@
 <?php
 require __DIR__ . '/../database.php';
 
+// admin-specific session
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_ADMIN');
+    session_start();
+}
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");

@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/../database.php';
 
+// student session namespace
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('FES_STUDENT');
+    session_start();
+}
+
 $err = '';
 
 if (isset($_POST['login'])) {
