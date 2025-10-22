@@ -25,7 +25,8 @@
                 </div>
 
                 <!-- ONE form handles names + photo -->
-                <form method="post" enctype="multipart/form-data" class="flex-1 flex flex-col overflow-hidden">
+                <form method="post" id="facultyProfileForm" enctype="multipart/form-data"
+                    class="flex-1 flex flex-col overflow-hidden">
                     <input type="hidden" name="faculty_id" id="fp_edit_faculty_id" value="">
                     <!-- body -->
                     <div class="px-4 py-4 space-y-4 overflow-y-auto">
@@ -97,10 +98,10 @@
                             </div>
                             <div class="p-3 flex items-center gap-2">
                                 <input type="hidden" name="faculty_id" id="fp_delete_faculty_id" value="">
+                                <input type="hidden" name="delete_faculty" id="fp_delete_flag" value="1" disabled>
                                 <button
-                                    type="submit"
-                                    name="delete_faculty"
-                                    onclick="return confirm('Delete this faculty? This cannot be undone.');"
+                                    type="button"
+                                    id="fp_delete_button"
                                     class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm rounded inline-flex items-center gap-1">
                                     <i class='bx bx-trash'></i><span>Delete Faculty</span>
                                 </button>
@@ -116,7 +117,7 @@
                             class="px-3 py-2 border border-gray-300 rounded text-gray-700">
                             Cancel
                         </button>
-                        <button name="save_profile"
+                        <button name="save_profile" value="1"
                             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm rounded inline-flex items-center gap-1">
                             <i class='bx bx-save'></i><span>Save Changes</span>
                         </button>
@@ -172,68 +173,19 @@
         });
     })();
 
-    /**
-     * Open and populate the faculty profile modal
-     * @param {number} fid Faculty ID
-     * @param {string} firstName First name
-     * @param {string} middleName Middle name
-     * @param {string} lastName Last name
-     * @param {string} suffix Name suffix (Jr., III, etc)
-     * @param {string} photoUrl URL to faculty photo
-     */
-    function openFacultyProfileModal(fid, firstName, middleName, lastName, suffix, photoUrl) {
-        // IDs
-        document.getElementById('fp_edit_faculty_id').value = fid;
-        document.getElementById('fp_delete_faculty_id').value = fid;
+    (function() {
+        const form = document.getElementById('facultyProfileForm');
+        const deleteBtn = document.getElementById('fp_delete_button');
+        const deleteFlag = document.getElementById('fp_delete_flag');
+        if (!form || !deleteBtn || !deleteFlag) return;
 
-        // Fields (prefill)
-        document.getElementById('fp_first_name').value = (firstName || '').trim();
-        document.getElementById('fp_middle_name').value = (middleName || '').trim();
-        document.getElementById('fp_last_name').value = (lastName || '').trim();
-        document.getElementById('fp_suffix').value = (suffix || '').trim();
+        deleteBtn.addEventListener('click', () => {
+            if (!confirm('Delete this faculty? This cannot be undone.')) {
+                return;
+            }
 
-        // Overview name (compute from all parts)
-        const parts = [firstName, middleName, lastName]
-            .filter(x => x && x.trim())
-            .join(' ')
-            .trim();
-        const fullName = parts + (suffix ? ' ' + suffix : '');
-        document.getElementById('fp_view_name').textContent = fullName || '(No name)';
-
-        // Photo
-        const img = document.getElementById('fp_view_photo');
-        if (img) {
-            img.src = photoUrl || '/assets/img/no-photo.png';
-            img.style.display = photoUrl ? '' : 'none';
-        }
-
-        // Show modal
-        const modal = document.getElementById('facultyProfileModal');
-        if (modal) modal.classList.remove('hidden');
-
-        // When fields change, keep the big name in sync
-        ['fp_first_name', 'fp_middle_name', 'fp_last_name', 'fp_suffix'].forEach(id => {
-            const el = document.getElementById(id);
-            el.addEventListener('input', () => {
-                const p = [
-                    document.getElementById('fp_first_name').value,
-                    document.getElementById('fp_middle_name').value,
-                    document.getElementById('fp_last_name').value,
-                    document.getElementById('fp_suffix').value
-                ].filter(Boolean);
-                document.getElementById('fp_view_name').textContent =
-                    (p.join(' ').replace(/\s+/g, ' ').trim()) || (full || '(No name)');
-            }, {
-                once: false
-            });
+            deleteFlag.disabled = false;
+            form.submit();
         });
-
-        // focus first field
-        setTimeout(() => document.getElementById('fp_first_name')?.focus(), 0);
-    }
-
-    // basic close helper if you don't already have it
-    function closeModal(id) {
-        document.getElementById(id)?.classList.add('hidden');
-    }
+    })();
 </script>

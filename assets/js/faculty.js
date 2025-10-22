@@ -185,49 +185,105 @@ window.openAssignModal = function (
 // --- Faculty profile view/edit modal
 window.openFacultyProfileModal = function (
   fid,
-  first,
-  middle,
-  last,
-  suffix,
-  photoUrl
+  fullName,
+  photoUrl,
+  nameParts
 ) {
   const modal = document.getElementById("facultyProfileModal");
   if (!modal) return;
 
-  modal.classList.remove("hidden");
-
-  // Set the full name in the view
-  const nameView = document.getElementById("fp_view_name");
-  if (nameView) {
-    const fullName =
-      [first, middle, last].filter((x) => x && x.trim()).join(" ") +
-      (suffix ? " " + suffix : "");
-    nameView.textContent = fullName || "(No name)";
+  const form = document.getElementById("facultyProfileForm");
+  if (form && typeof form.reset === "function") {
+    form.reset();
   }
 
-  // Set photo
+  // Reset file helper text if present
+  const photoFileName = document.getElementById("fp_photo_filename");
+  if (photoFileName) {
+    photoFileName.textContent = "";
+  }
+
+  const deleteFlag = document.getElementById("fp_delete_flag");
+  if (deleteFlag) {
+    deleteFlag.disabled = true;
+  }
+
+  // Helper to safely read a part from the payload
+  const getPart = (key) => {
+    if (!nameParts || typeof nameParts !== "object") return "";
+    const raw = nameParts[key];
+    return typeof raw === "string" ? raw : "";
+  };
+
+  const first = getPart("first_name");
+  const middle = getPart("middle_name");
+  const last = getPart("last_name");
+  const suffix = getPart("suffix");
+
+  const editId = document.getElementById("fp_edit_faculty_id");
+  const deleteId = document.getElementById("fp_delete_faculty_id");
+  if (editId) editId.value = fid;
+  if (deleteId) deleteId.value = fid;
+
+  const firstInput = document.getElementById("fp_first_name");
+  const middleInput = document.getElementById("fp_middle_name");
+  const lastInput = document.getElementById("fp_last_name");
+  const suffixInput = document.getElementById("fp_suffix");
+
+  if (firstInput) firstInput.value = first.trim();
+  if (middleInput) middleInput.value = middle.trim();
+  if (lastInput) lastInput.value = last.trim();
+  if (suffixInput) suffixInput.value = suffix.trim();
+
+  const readValue = (input) => {
+    if (!input || typeof input.value !== "string") return "";
+    return input.value;
+  };
+
+  const buildDisplayName = () => {
+    const parts = [readValue(firstInput), readValue(middleInput), readValue(lastInput)]
+      .map((part) => (part || "").trim())
+      .filter((part) => part !== "");
+    const joined = parts.join(" ");
+    const suffixVal = readValue(suffixInput).trim();
+    return (joined + (suffixVal ? " " + suffixVal : "")).trim();
+  };
+
+  const nameView = document.getElementById("fp_view_name");
+  const resolvedFullName = buildDisplayName() || (fullName || "").trim();
+  if (nameView) {
+    nameView.textContent = resolvedFullName || "(No name)";
+  }
+
+  const updateViewOnInput = () => {
+    if (!nameView) return;
+    const current = buildDisplayName();
+    nameView.textContent = current || resolvedFullName || "(No name)";
+  };
+
+  [firstInput, middleInput, lastInput, suffixInput].forEach((input) => {
+    if (!input) return;
+    if (input.dataset.fpListenerAttached === "1") return;
+    input.addEventListener("input", updateViewOnInput);
+    input.dataset.fpListenerAttached = "1";
+  });
+
   const img = document.getElementById("fp_view_photo");
   if (img) {
     if (photoUrl) {
       img.src = photoUrl;
       img.classList.remove("hidden");
     } else {
+      img.src = "";
       img.classList.add("hidden");
     }
   }
 
-  // Set form fields
-  const editId = document.getElementById("fp_edit_faculty_id");
-  const firstInput = document.getElementById("fp_first_name");
-  const middleInput = document.getElementById("fp_middle_name");
-  const lastInput = document.getElementById("fp_last_name");
-  const suffixInput = document.getElementById("fp_suffix");
-  const delId = document.getElementById("fp_delete_faculty_id");
+  modal.classList.remove("hidden");
 
-  if (editId) editId.value = fid;
-  if (firstInput) firstInput.value = first || "";
-  if (middleInput) middleInput.value = middle || "";
-  if (lastInput) lastInput.value = last || "";
-  if (suffixInput) suffixInput.value = suffix || "";
-  if (delId) delId.value = fid;
+  setTimeout(() => {
+    if (firstInput && typeof firstInput.focus === "function") {
+      firstInput.focus();
+    }
+  }, 0);
 };
