@@ -22,11 +22,11 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-sm text-gray-700 mb-1">Starts On</label>
-                    <input type="date" name="starts_on" required class="border border-gray-300 w-full px-3 py-2 rounded" id="mtStart">
+                    <input type="date" name="starts_on" min="<?= date('Y-m-d') ?>" required class="border border-gray-300 w-full px-3 py-2 rounded" id="mtStart">
                 </div>
                 <div>
                     <label class="block text-sm text-gray-700 mb-1">Ends On</label>
-                    <input type="date" name="ends_on" required class="border border-gray-300 w-full px-3 py-2 rounded" id="mtEnd">
+                    <input type="date" name="ends_on" min="<?= date('Y-m-d') ?>" required class="border border-gray-300 w-full px-3 py-2 rounded" id="mtEnd">
                 </div>
             </div>
 

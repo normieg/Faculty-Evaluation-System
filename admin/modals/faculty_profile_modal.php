@@ -10,7 +10,7 @@
     <div class="fixed inset-0 overflow-y-auto">
         <div class="flex min-h-full items-center justify-center p-4">
             <!-- Panel -->
-            <div class="w-full max-w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl bg-white rounded-lg border border-gray-200 shadow-lg
+            <div class="w-full max-w-full sm:max-w-lg md:max-w-1xl lg:max-w-3xl bg-white rounded-lg border border-gray-200 shadow-lg
                   max-h-[85vh] flex flex-col">
 
                 <!-- Header -->
@@ -90,7 +90,7 @@
                         <!-- End of form body -->
                     </div>
                     <!-- Danger Zone (no nested form) -->
-                    <div class="px-4 pb-4">
+                    <div class="px-4 pb-4 border-t border-gray-500 pt-4">
                         <div class="border border-red-300 rounded">
                             <div class="px-3 py-2 border-b border-red-200 flex items-center gap-2 bg-red-50">
                                 <i class='bx bx-error-circle text-red-600'></i>

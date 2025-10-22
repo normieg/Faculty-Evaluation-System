@@ -38,9 +38,9 @@ function cap_name($s)
         if (preg_match('/^[\s-]+$/', $tok)) {
             $out .= $tok; // separator
         } else {
-            // Handle mc/mac prefixes
             if (preg_match('/^(mc|mac)(.+)$/i', $tok, $m)) {
-                $out .= ucfirst(strtolower($m[1])) . ucfirst(strtolower($m[2]));
+                $combined = $m[1] . $m[2];
+                $out .= ucfirst(mb_strtolower($combined, 'UTF-8'));
             } else {
                 $out .= ucfirst(mb_strtolower($tok, 'UTF-8'));
             }
@@ -265,6 +265,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Save assignments from Assign for Evaluation modal
+    if (isset($_POST['save_assign_eval'])) {
+        // Debug incoming POST to help diagnose missing section assignments
+        error_log('save_assign_eval POST: ' . print_r($_POST, true));
+        $fid = (int)($_POST['faculty_id'] ?? 0);
+        $pid = (int)($_POST['program_id'] ?? 0);
+
+        if ($fid <= 0 || $pid <= 0) {
+            $_SESSION['flash_msg'] = 'Invalid faculty or program.';
+            $_SESSION['flash_type'] = 'error';
+            header("Location: admin_faculty.php");
+            exit;
+        }
+
+        // Normalize inputs
+        $years = isset($_POST['year']) && is_array($_POST['year']) ? array_map('intval', $_POST['year']) : [];
+        $sections = isset($_POST['section']) && is_array($_POST['section']) ? array_map('intval', $_POST['section']) : [];
+
+        // Remove previous mappings for this faculty+program to simplify re-insert
+        mysqli_query($conn, "DELETE FROM faculty_programs WHERE faculty_id={$fid} AND program_id={$pid}");
+        mysqli_query($conn, "DELETE FROM faculty_program_years WHERE faculty_id={$fid} AND program_id={$pid}");
+        mysqli_query($conn, "DELETE FROM faculty_section_assignments WHERE faculty_id={$fid} AND program_id={$pid}");
+
+        // Always add a faculty_programs row to indicate faculty belongs to the program
+        mysqli_query($conn, "INSERT INTO faculty_programs (faculty_id, program_id) VALUES ({$fid}, {$pid})");
+
+        // If year levels were selected, insert them (restricts to those years)
+        if (!empty($years)) {
+            $years = array_unique($years);
+            foreach ($years as $yl) {
+                $yl = (int)$yl;
+                if ($yl <= 0) continue;
+                mysqli_query($conn, "INSERT INTO faculty_program_years (faculty_id, program_id, year_level) VALUES ({$fid}, {$pid}, {$yl})");
+            }
+        }
+
+        // If sections were selected, insert section-level assignments (these restrict which sections a faculty covers)
+        if (!empty($sections)) {
+            $sections = array_unique($sections);
+            // Fetch year levels for selected sections (defensive)
+            $in = implode(',', array_map('intval', $sections));
+            $secRes = mysqli_query($conn, "SELECT id, year_level FROM sections WHERE id IN ({$in})");
+            if ($secRes) {
+                while ($r = mysqli_fetch_assoc($secRes)) {
+                    $sid = (int)$r['id'];
+                    $yl = (int)$r['year_level'];
+                    $q = "INSERT INTO faculty_section_assignments (faculty_id, program_id, year_level, section_id) VALUES ({$fid}, {$pid}, {$yl}, {$sid})";
+                    mysqli_query($conn, $q);
+                    if (mysqli_errno($conn)) {
+                        error_log('save_assign_eval - insert failed: ' . mysqli_error($conn) . ' -- SQL: ' . $q);
+                    } else {
+                        error_log('save_assign_eval - inserted: ' . $q);
+                    }
+                }
+            } else {
+                error_log('save_assign_eval - no sections found for IN: ' . $in);
+            }
+        } else {
+            error_log('save_assign_eval - no sections posted');
+        }
+
+        $_SESSION['flash_msg'] = 'Assignments saved.';
+        $_SESSION['flash_type'] = 'success';
+        header("Location: admin_faculty.php");
+        exit;
+    }
+
 
     // Toggle active
     if (isset($_POST['toggle_active'])) {
@@ -396,17 +463,18 @@ while ($row = mysqli_fetch_assoc($res)) {
 
     <main class="lg:ml-64 p-4 pt-16">
 
-        <!-- Flash Message -->
-        <?php if (!empty($msg)): ?>
-            <div class="rounded border px-3 py-2 mb-4 text-sm flex items-center gap-2
+        <div class="pt-2">
+            <!-- Flash Message -->
+            <?php if (!empty($msg)): ?>
+                <div class="rounded border px-3 py-2 text-sm flex items-center gap-2
             <?= $msg_type === 'success' ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800' ?>">
-                <i class='bx <?= $msg_type === 'success' ? 'bx-check-circle' : 'bx-error-circle' ?> text-xl'></i>
-                <span><?= h($msg) ?></span>
-            </div>
-        <?php endif; ?>
-
+                    <i class='bx <?= $msg_type === 'success' ? 'bx-check-circle' : 'bx-error-circle' ?> text-xl'></i>
+                    <span><?= h($msg) ?></span>
+                </div>
+            <?php endif; ?>
+        </div>
         <!-- Search + Sort + Add -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 pt-3">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 pt-2">
             <div class="flex items-center gap-2">
                 <div class="relative">
                     <input id="facultySearch" type="text"
@@ -523,10 +591,59 @@ while ($row = mysqli_fetch_assoc($res)) {
                                 <span>Assign for Evaluation</span>
                             </button>
                         </div>
+
+                        <?php
+                        // Small diagnostics: show current assignments for this faculty
+                        $assignments = [];
+                        $apr = mysqli_query($conn, "SELECT fp.program_id, p.code AS program_code, p.name AS program_name
+                            FROM faculty_programs fp JOIN programs p ON p.id = fp.program_id
+                            WHERE fp.faculty_id={$fid}");
+                        while ($ar = mysqli_fetch_assoc($apr)) {
+                            $pid = (int)$ar['program_id'];
+                            $assignments[$pid] = [
+                                'code' => $ar['program_code'],
+                                'name' => $ar['program_name'],
+                                'years' => [],
+                                'sections' => []
+                            ];
+                        }
+                        if (!empty($assignments)) {
+                            // Fetch years
+                            $yrRes = mysqli_query($conn, "SELECT program_id, year_level FROM faculty_program_years WHERE faculty_id={$fid}");
+                            while ($y = mysqli_fetch_assoc($yrRes)) {
+                                $pid = (int)$y['program_id'];
+                                if (isset($assignments[$pid])) $assignments[$pid]['years'][] = (int)$y['year_level'];
+                            }
+                            // Fetch sections
+                            $secRes = mysqli_query($conn, "SELECT program_id, section_id FROM faculty_section_assignments WHERE faculty_id={$fid}");
+                            while ($s = mysqli_fetch_assoc($secRes)) {
+                                $pid = (int)$s['program_id'];
+                                if (isset($assignments[$pid])) $assignments[$pid]['sections'][] = (int)$s['section_id'];
+                            }
+                        }
+                        if (!empty($assignments)): ?>
+                            <div class="mt-3 text-xs text-gray-600">
+                                <strong>Assigned:</strong>
+                                <?php foreach ($assignments as $pid => $a): ?>
+                                    <div class="mt-1">
+                                        <span class="font-medium"><?= h($a['code']) ?>:</span>
+                                        <?php if (!empty($a['years'])): ?>
+                                            Years <?= h(implode(', ', $a['years'])) ?>
+                                        <?php else: ?>
+                                            All years
+                                        <?php endif; ?>
+                                        <?php if (!empty($a['sections'])): ?>
+                                            — Sections: <?= h(implode(', ', $a['sections'])) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
-                <?php endforeach; ?>
             </div>
-        <?php endif; ?>
+        <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
     </main>
 
     <?php include __DIR__ . '/modals/add_faculty_modal.php'; ?>
@@ -537,7 +654,6 @@ while ($row = mysqli_fetch_assoc($res)) {
     <script src="../assets/js/faculty.js"></script>
 
     <script>
-        // Client-side search still works, now based on concatenated name parts
         (function() {
             const q = document.getElementById('facultySearch');
             if (!q) return;

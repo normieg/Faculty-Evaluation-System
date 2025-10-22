@@ -71,26 +71,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Add (comes from modal)
     if (isset($_POST['add_term'])) {
-        $label = trim($_POST['label'] ?? '');
-        $start = $_POST['starts_on'] ?? '';
-        $end   = $_POST['ends_on'] ?? '';
+        $label = trim($_POST['label']);
+        $start = $_POST['starts_on'];
+        $end   = $_POST['ends_on'];
+
         if ($label === '' || $start === '' || $end === '') {
-            $_SESSION['flash_msg'] = "Please complete all fields.";
-            $_SESSION['flash_type'] = 'error';
+            $msg = "All fields are required.";
+            $msg_type = 'error';
         } else {
-            $tsS = strtotime($start);
-            $tsE = strtotime($end);
-            if (!$tsS || !$tsE || $tsE <= $tsS) {
-                $_SESSION['flash_msg'] = "“Ends On” must be after “Starts On”.";
-                $_SESSION['flash_type'] = 'error';
+            $today = date('Y-m-d');
+
+            // Validate date order and prevent past dates
+            if ($start < $today) {
+                $msg = "The start date cannot be in the past.";
+                $msg_type = 'error';
+            } elseif ($end < $start) {
+                $msg = "The end date must be after the start date.";
+                $msg_type = 'error';
             } else {
-                mysqli_query($conn, "INSERT INTO terms(label,starts_on,ends_on,is_active) VALUES('{$label}','{$start}','{$end}',0)");
-                $_SESSION['flash_msg'] = "Added “" . h($label) . "”.";
-                $_SESSION['flash_type'] = 'success';
+                mysqli_query($conn, "INSERT INTO terms(label, starts_on, ends_on, is_active) VALUES('$label', '$start', '$end', 0)");
+                $msg = "New term added successfully.";
+                $msg_type = 'success';
             }
+            header("Location: admin_terms.php");
+            exit;
         }
-        header("Location: admin_terms.php");
-        exit;
     }
 }
 
@@ -297,7 +302,6 @@ while ($row = mysqli_fetch_assoc($res)) {
         </section>
     </main>
 
-    <!-- Include the modal file -->
     <?php include __DIR__ . '/modals/add_term_modal.php'; ?>
 
     <script>
