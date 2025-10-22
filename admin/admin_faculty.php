@@ -591,54 +591,6 @@ while ($row = mysqli_fetch_assoc($res)) {
                                 <span>Assign for Evaluation</span>
                             </button>
                         </div>
-
-                        <?php
-                        // Small diagnostics: show current assignments for this faculty
-                        $assignments = [];
-                        $apr = mysqli_query($conn, "SELECT fp.program_id, p.code AS program_code, p.name AS program_name
-                            FROM faculty_programs fp JOIN programs p ON p.id = fp.program_id
-                            WHERE fp.faculty_id={$fid}");
-                        while ($ar = mysqli_fetch_assoc($apr)) {
-                            $pid = (int)$ar['program_id'];
-                            $assignments[$pid] = [
-                                'code' => $ar['program_code'],
-                                'name' => $ar['program_name'],
-                                'years' => [],
-                                'sections' => []
-                            ];
-                        }
-                        if (!empty($assignments)) {
-                            // Fetch years
-                            $yrRes = mysqli_query($conn, "SELECT program_id, year_level FROM faculty_program_years WHERE faculty_id={$fid}");
-                            while ($y = mysqli_fetch_assoc($yrRes)) {
-                                $pid = (int)$y['program_id'];
-                                if (isset($assignments[$pid])) $assignments[$pid]['years'][] = (int)$y['year_level'];
-                            }
-                            // Fetch sections
-                            $secRes = mysqli_query($conn, "SELECT program_id, section_id FROM faculty_section_assignments WHERE faculty_id={$fid}");
-                            while ($s = mysqli_fetch_assoc($secRes)) {
-                                $pid = (int)$s['program_id'];
-                                if (isset($assignments[$pid])) $assignments[$pid]['sections'][] = (int)$s['section_id'];
-                            }
-                        }
-                        if (!empty($assignments)): ?>
-                            <div class="mt-3 text-xs text-gray-600">
-                                <strong>Assigned:</strong>
-                                <?php foreach ($assignments as $pid => $a): ?>
-                                    <div class="mt-1">
-                                        <span class="font-medium"><?= h($a['code']) ?>:</span>
-                                        <?php if (!empty($a['years'])): ?>
-                                            Years <?= h(implode(', ', $a['years'])) ?>
-                                        <?php else: ?>
-                                            All years
-                                        <?php endif; ?>
-                                        <?php if (!empty($a['sections'])): ?>
-                                            — Sections: <?= h(implode(', ', $a['sections'])) ?>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
                     </div>
             </div>
         <?php endforeach; ?>
