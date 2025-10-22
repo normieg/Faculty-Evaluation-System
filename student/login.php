@@ -24,6 +24,7 @@ if (isset($_POST['login'])) {
                 $_SESSION['school_id']  = $row['school_id'];
                 $_SESSION['program_id'] = $row['program_id'];
                 $_SESSION['year_level'] = $row['year_level'];
+                $_SESSION['section_id'] = isset($row['section_id']) ? (int)$row['section_id'] : 0;
 
                 header("Location: student_dashboard.php");
                 exit;

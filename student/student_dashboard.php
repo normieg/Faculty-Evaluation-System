@@ -22,6 +22,14 @@ $program_id = (int)($_SESSION['program_id'] ?? 0);
 $year_level = (int)($_SESSION['year_level'] ?? 0);
 $section_id = isset($_SESSION['section_id']) ? (int)$_SESSION['section_id'] : 0;
 $school_id  = $_SESSION['school_id'] ?? '';
+$section_code = '';
+
+if ($section_id > 0) {
+    $secRes = mysqli_query($conn, "SELECT code FROM sections WHERE id={$section_id} LIMIT 1");
+    if ($secRes && mysqli_num_rows($secRes) > 0) {
+        $section_code = mysqli_fetch_assoc($secRes)['code'] ?? '';
+    }
+}
 
 // --- Get program code ---
 $program_code = '';
@@ -183,7 +191,7 @@ function already_evaluated($conn, $fid, $term_id, $rater_hash)
             <div class="bg-white border border-gray-200 rounded-xl p-4">
                 <p class="text-sm text-gray-500">Year Level<?= $section_id ? ' / Section' : '' ?></p>
                 <p class="mt-1 font-semibold text-gray-800">
-                    <?= $year_level ?><?= $section_id ? ' / ' . htmlspecialchars((string)$section_id) : '' ?>
+                    <?= $year_level ?><?= $section_id ? ' / ' . htmlspecialchars($section_code !== '' ? $section_code : ('Section ' . $section_id)) : '' ?>
                 </p>
             </div>
         </div>
